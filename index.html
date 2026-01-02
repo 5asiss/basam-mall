@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>바구니 삼촌 - 송도 직배송 마켓</title>
+    <style>
+        /* [스타일 설정] 초보자도 쉽게 색상을 바꿀 수 있는 변수 영역 */
+        :root {
+            --primary-color: #27ae60; /* 신선한 초록색 */
+            --accent-color: #f39c12; /* 강조 오렌지색 */
+            --text-dark: #333333;
+            --text-light: #666666;
+            --bg-light: #f9f9f9;
+        }
+
+        /* 기본 초기화 */
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Pretendard', 'Malgun Gothic', sans-serif; }
+        body { line-height: 1.6; color: var(--text-dark); background-color: #fff; }
+        a { text-decoration: none; color: inherit; }
+        ul { list-style: none; }
+
+        /* 공통 버튼 스타일 */
+        .btn {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            transition: 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+        .btn:hover { background-color: #219150; transform: translateY(-2px); }
+
+        /* 1. 헤더 (상단 메뉴) */
+        header {
+            background: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        .logo { font-size: 1.5rem; font-weight: 900; color: var(--primary-color); }
+        .logo span { color: var(--text-dark); }
+
+        /* 2. 히어로 섹션 (메인 배너) */
+        .hero {
+            background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1542838132-92c53300491e?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80');
+            background-size: cover;
+            background-position: center;
+            height: 400px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: white;
+            padding: 20px;
+        }
+        .hero h1 { font-size: 2.2rem; margin-bottom: 15px; line-height: 1.3; }
+        .hero p { font-size: 1.1rem; margin-bottom: 25px; opacity: 0.9; }
+        
+        /* 3. 소개 섹션 (8년 경력) */
+        .about { padding: 60px 20px; text-align: center; background-color: white; }
+        .section-title { font-size: 1.8rem; margin-bottom: 30px; color: var(--text-dark); }
+        .section-title span { color: var(--primary-color); border-bottom: 3px solid var(--accent-color); }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .stat-card {
+            padding: 20px;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        .stat-number { font-size: 2.5rem; font-weight: bold; color: var(--primary-color); display: block; margin-bottom: 10px; }
+        .stat-text { color: var(--text-light); }
+
+        /* 4. 문제와 해결 (비교) */
+        .comparison { padding: 60px 20px; background-color: var(--bg-light); text-align: center; }
+        .compare-box {
+            background: white;
+            max-width: 800px;
+            margin: 0 auto;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .compare-row { display: flex; border-bottom: 1px solid #eee; }
+        .compare-row:last-child { border-bottom: none; }
+        .col { flex: 1; padding: 20px; display: flex; align-items: center; justify-content: center; flex-direction: column;}
+        .col.bad { background-color: #fcebeb; color: #c0392b; }
+        .col.good { background-color: #eafaf1; color: var(--primary-color); font-weight: bold; }
+        .col-title { font-weight: bold; font-size: 1.2rem; margin-bottom: 5px; color: #333; }
+        
+        /* 5. 4PL 시스템 설명 */
+        .system { padding: 60px 20px; max-width: 1000px; margin: 0 auto; }
+        .system-content { display: flex; flex-wrap: wrap; align-items: center; gap: 40px; }
+        .system-text { flex: 1; min-width: 300px; }
+        .system-img { flex: 1; min-width: 300px; }
+        .system-img img { width: 100%; border-radius: 10px; }
+        .check-list li { margin-bottom: 15px; font-size: 1.1rem; display: flex; align-items: center; }
+        .check-list li::before { content: '✔'; color: var(--primary-color); margin-right: 10px; font-weight: bold; }
+
+        /* 6. CTA (행동 유도) */
+        .cta-section {
+            background-color: var(--primary-color);
+            color: white;
+            text-align: center;
+            padding: 50px 20px;
+        }
+        .cta-section h2 { margin-bottom: 15px; }
+        .cta-btn-white {
+            background-color: white;
+            color: var(--primary-color);
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            display: inline-block;
+            margin-top: 20px;
+        }
+
+        /* 푸터 */
+        footer { background-color: #333; color: #aaa; padding: 30px 20px; text-align: center; font-size: 0.9rem; }
+
+        /* 모바일 최적화 */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 1.8rem; }
+            .stat-number { font-size: 2rem; }
+            .system-content { flex-direction: column-reverse; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">바구니<span>삼촌</span></div>
+        <a href="#" class="btn" style="padding: 8px 20px; font-size: 0.9rem;">주문하기</a>
+    </header>
+
+    <section class="hero">
+        <h1>송도 배달 100만 건의 신화<br>거품을 뺀 직거래 마켓</h1>
+        <p>창고 NO, 재고 NO, 수수료 NO.<br>오직 신선함만 배달합니다.</p>
+        <a href="#contact" class="btn">지금 할인받기</a>
+    </section>
+
+    <section class="about">
+        <h2 class="section-title"><span>8년</span> 동안 송도를 달렸습니다</h2>
+        <p style="margin-bottom: 30px; color: #666;">
+            배민, 쿠팡이 없던 시절부터 코로나의 파도까지.<br>
+            사고 없이 묵묵히 버텨온 송도 토박이 배달 운영자입니다.
+        </p>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-number">8년</span>
+                <span class="stat-text">송도 배달대행 운영</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number">100만건+</span>
+                <span class="stat-text">누적 배송 수행</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number">1,000명+</span>
+                <span class="stat-text">함께한 등록 기사님</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="comparison">
+        <h2 class="section-title">왜 <span>바구니 삼촌</span>인가요?</h2>
+        <p style="margin-bottom: 30px;">대기업 플랫폼 수수료 20%, 고객님께 돌려드립니다.</p>
+        
+        <div class="compare-box">
+            <div class="compare-row">
+                <div class="col col-title">구분</div>
+                <div class="col col-title" style="color:#aaa;">일반 플랫폼</div>
+                <div class="col col-title" style="color:var(--primary-color);">바구니 삼촌</div>
+            </div>
+            <div class="compare-row">
+                <div class="col col-title">가격 구조</div>
+                <div class="col bad">수수료 포함<br>(비쌈)</div>
+                <div class="col good">수수료 0원<br>(10~30% 저렴)</div>
+            </div>
+            <div class="compare-row">
+                <div class="col col-title">배송 방식</div>
+                <div class="col">복잡한 유통단계</div>
+                <div class="col good">도매시장 직배송</div>
+            </div>
+            <div class="compare-row">
+                <div class="col col-title">재고 관리</div>
+                <div class="col">창고 보관 (신선도 하락)</div>
+                <div class="col good">당일 발주 당일 배송</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="system">
+        <div class="system-content">
+            <div class="system-text">
+                <h2 class="section-title" style="text-align: left;">운영비 0원에 도전하는<br><span>스마트 4PL 시스템</span></h2>
+                <ul class="check-list">
+                    <li><strong>통합 관리:</strong> 자체 개발 홈페이지와 자체 배송망 운영</li>
+                    <li><strong>비용 절감:</strong> 창고보관비, 재고관리비 완전 제거</li>
+                    <li><strong>신선 약속:</strong> 당일 발주된 상품만 구입하여 즉시 배송</li>
+                    <li><strong>가격 혜택:</strong> 기존 대비 최소 10~30% 저렴하게 공급</li>
+                </ul>
+            </div>
+            <div class="system-img">
+                <img src="https://images.unsplash.com/photo-1605000797499-95a053545e5e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" alt="배송 시스템 이미지">
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-section" id="contact">
+        <h2>송도 주민이라면, 지금 바로 확인하세요!</h2>
+        <p>오늘 주문하면 오늘 도착. 신선함의 차이를 느껴보세요.</p>
+        <a href="#" class="cta-btn-white">바구니 삼촌 팔로우하기</a>
+    </section>
+
+    <footer>
+        <p>상호명: 바구니 삼촌 | 대표: 바구니삼촌 | 사업자등록번호: 준비중</p>
+        <p>주소: 인천광역시 연수구 송도동 | 고객센터: 010-0000-0000</p>
+        <p style="margin-top: 10px; font-size: 0.8rem;">&copy; 2025 Baguni Samchon. All rights reserved.</p>
+    </footer>
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyAdXDygbJaw5FqRK4zoLA0unqcgHp-17Jk",
+  authDomain: "basam-f7a3d.firebaseapp.com",
+  projectId: "basam-f7a3d",
+  storageBucket: "basam-f7a3d.firebasestorage.app",
+  messagingSenderId: "679083356746",
+  appId: "1:679083356746:web:9412ae07bef2634a236cb3"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+</body>
+</html>
