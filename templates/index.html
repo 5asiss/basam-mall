@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>바구니삼촌</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { font-family: "Pretendard", -apple-system, sans-serif; background-color: #f3f4f6; margin: 0; height: 100vh; overflow: hidden; }
+    #root { height: 100%; }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .word-keep { word-break: keep-all; overflow-wrap: break-word; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    {% raw %}
+    const { useState, useEffect, useRef } = React;
+    
+    const FIXED_CATEGORIES = ['과일', '채소', '양곡/견과류', '정육/계란', '수산/건해산물', '양념/가루/오일', '반찬/냉장/냉동/즉석식품', '면류/통조림/간편식품', '유제품/베이커리', '생수/음료/커피/차', '과자/시리얼/빙과', '바디케어/베이비', '주방/세제/세탁/청소', '생활/잡화', '대용량/식자재', '세트상품', '기타'];
+
+    // [수정 완료] 사업가님 계좌 정보 반영
+    const BANK_INFO = {
+        bank: "수협은행",
+        account: "7010-6668-1661",
+        holder: "금창권"
+    };
+
+    function App() {
+      const [view, setView] = useState('home'); 
+      const [products, setProducts] = useState([]);
+      const [cart, setCart] = useState([]);
+      const [categories, setCategories] = useState(['전체', ...FIXED_CATEGORIES]);
+      const [activeCategory, setActiveCategory] = useState('전체');
+      const [activeTab, setActiveTab] = useState('home');
+      const [reviews, setReviews] = useState([]);
+      const [isLoading, setIsLoading] = useState(true);
+
+      const [currentUser, setCurrentUser] = useState(null); 
+      const [loginForm, setLoginForm] = useState({id:'', password:''});
+      const [regForm, setRegForm] = useState({id:'', password:'', name:'', nickname:'', phone:'', email:'', address:'', detail_addr:'', gate_pw:''});
+      
+      const [adminTab, setAdminTab] = useState('dashboard');
+      const [adminOrders, setAdminOrders] = useState([]);
+      const [adminUsers, setAdminUsers] = useState([]); 
+      const [msgInput, setMsgInput] = useState('');
+      const [secretClickCount, setSecretClickCount] = useState(0);
+      
+      const [newProduct, setNewProduct] = useState({ id: null, name: '', spec: '', price: '', category: '과일', stock: 100, icon: '🍎' });
+      const [deleteCategory, setDeleteCategory] = useState(FIXED_CATEGORIES[0]);
+      
+      const [orderStep, setOrderStep] = useState(0);
+      const [orderInfo, setOrderInfo] = useState({ name: '', phone: '', email: '', addr: '', detail: '', gate: '', req: '', payMethod: 'bank' });
+      const [globalNotice, setGlobalNotice] = useState('');
+      const [showAddressModal, setShowAddressModal] = useState(false);
+      const daumPostcodeRef = useRef(null);
+      const [searchQuery, setSearchQuery] = useState('');
+      
+      const cartTotal = cart.reduce((sum, item) => sum + Number(item.price), 0);
+      
+      const api = {
+        get: (url) => fetch(url).then(r => r.json()),
+        post: (url, data) => fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(r => r.json())
+      };
+
+      useEffect(() => { loadData(); }, []);
+      useEffect(() => {
+          const storedUser = localStorage.getItem('basket_user');
+          if(storedUser) setCurrentUser(JSON.parse(storedUser));
+      }, []);
+
+      const loadData = () => {
+        api.get('/api/init').then(data => {
+            setProducts(data.products || []);
+            setGlobalNotice(data.settings?.notice || '');
+            setReviews(data.reviews || []);
+            setIsLoading(false);
+        });
+      };
+
+      const handleImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+             setNewProduct({ ...newProduct, icon: event.target.result });
+          };
+          reader.readAsDataURL(file);
+        }
+      };
+      
+      const handleAddProduct = () => {
+         if(!newProduct.name || !newProduct.price) return alert('상품명과 가격은 필수입니다.');
+         const fullName = newProduct.spec ? `${newProduct.name} (${newProduct.spec})` : newProduct.name;
+         const payload = { ...newProduct, name: fullName };
+         api.post('/api/product', payload).then(() => {
+             loadData(); 
+             alert('등록완료'); 
+             setNewProduct({name:'', spec:'', price:'', category:'과일', stock:100, icon:'🍎'});
+         });
+      };
+
+      const handleLogin = () => {
+          api.post('/api/login', loginForm).then(res => {
+              if(res.error) alert(res.error);
+              else {
+                  setCurrentUser(res);
+                  localStorage.setItem('basket_user', JSON.stringify(res));
+                  setLoginForm({id:'', password:''});
+                  if(res.is_admin === 1) { setView('admin'); loadAdminData(); } 
+                  else { setView('home'); setOrderInfo({name: res.name, phone: res.phone, email: res.email, addr: res.address, detail: res.detail_addr, gate: res.gate_pw, payMethod: 'bank'}); }
+              }
+          });
+      };
+
+      const handleRegister = () => {
+          if(!regForm.id || !regForm.password || !regForm.name || !regForm.nickname) return alert('필수 정보를 입력하세요.');
+          api.post('/api/register', regForm).then(res => {
+              if(res.error) alert(res.error);
+              else { alert('가입 완료! 로그인해주세요.'); setView('login'); }
+          });
+      };
+
+      const handleLogout = () => {
+          setCurrentUser(null);
+          localStorage.removeItem('basket_user');
+          setView('home');
+      };
+
+      const loadAdminData = () => {
+          api.get('/api/admin/orders').then(setAdminOrders);
+          api.get('/api/admin/users').then(setAdminUsers);
+      };
+
+      const openDaumPostcode = (target) => { setShowAddressModal(target); };
+
+      useEffect(() => {
+        if (showAddressModal && daumPostcodeRef.current) {
+           new daum.Postcode({
+            oncomplete: function(data) {
+              let fullAddr = data.address;
+              if(data.addressType === 'R'){ if(data.bname !== '') fullAddr += ' ' + data.bname; if(data.buildingName !== '') fullAddr += ' ' + data.buildingName; }
+              if(showAddressModal === 'order') setOrderInfo(prev => ({ ...prev, addr: fullAddr }));
+              if(showAddressModal === 'register') setRegForm(prev => ({ ...prev, address: fullAddr }));
+              setShowAddressModal(false);
+            }, width: '100%', height: '100%'
+          }).embed(daumPostcodeRef.current);
+        }
+      }, [showAddressModal]);
+
+      const submitOrder = () => {
+        if(!orderInfo.name || !orderInfo.phone || !orderInfo.addr) return alert("필수 정보 입력!");
+        const itemsStr = cart.map(i => i.name).join(', ');
+        let payStatus = '입금대기';
+        if (orderInfo.payMethod === 'meet') payStatus = '현장결제예정';
+        
+        const newOrder = { 
+            ...orderInfo, 
+            items: itemsStr, 
+            total: cartTotal.toLocaleString() + "원", 
+            cart: cart, 
+            orderNumber: Date.now(), 
+            status: '접수완료', 
+            payment: payStatus, 
+            date: new Date().toLocaleTimeString(), 
+            userId: currentUser ? currentUser.id : 'guest' 
+        };
+        api.post('/api/order', newOrder).then(() => { setOrderStep(3); setCart([]); loadData(); });
+      };
+
+      const copyAccount = () => {
+          navigator.clipboard.writeText(`${BANK_INFO.bank} ${BANK_INFO.account}`).then(() => alert("계좌번호가 복사되었습니다!"));
+      };
+
+      const filteredProducts = products.filter(p => {
+          const matchCat = activeCategory === '전체' || p.category === activeCategory;
+          const matchSearch = p.name.includes(searchQuery);
+          return matchCat && matchSearch;
+      });
+
+      if (isLoading) return <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50"><div className="text-4xl animate-spin mb-4">🥦</div><p>로딩중...</p></div>;
+
+      if (view === 'login') {
+          return (
+              <div className="max-w-md mx-auto bg-white h-full flex flex-col p-6 justify-center">
+                  <h2 className="text-2xl font-bold mb-6 text-center text-green-700">바구니삼촌 로그인</h2>
+                  <input className="w-full p-3 border rounded mb-3" placeholder="아이디" value={loginForm.id} onChange={e=>setLoginForm({...loginForm, id:e.target.value})}/>
+                  <input type="password" className="w-full p-3 border rounded mb-4" placeholder="비밀번호" value={loginForm.password} onChange={e=>setLoginForm({...loginForm, password:e.target.value})}/>
+                  <button onClick={handleLogin} className="w-full bg-green-600 text-white py-3 rounded-lg font-bold mb-3">로그인</button>
+                  <button onClick={()=>setView('register')} className="w-full bg-gray-100 text-gray-600 py-3 rounded-lg font-bold">회원가입</button>
+                  <button onClick={()=>setView('home')} className="mt-4 text-gray-400 text-sm underline text-center">홈으로 돌아가기</button>
+              </div>
+          )
+      }
+
+      if (view === 'register') {
+          return (
+              <div className="max-w-md mx-auto bg-white h-full flex flex-col p-6 overflow-y-auto">
+                  <h2 className="text-xl font-bold mb-4 text-center">회원가입</h2>
+                  <div className="space-y-3">
+                      <input className="w-full p-3 border rounded" placeholder="아이디 (필수)" value={regForm.id} onChange={e=>setRegForm({...regForm, id:e.target.value})}/>
+                      <input type="password" className="w-full p-3 border rounded" placeholder="비밀번호 (필수)" value={regForm.password} onChange={e=>setRegForm({...regForm, password:e.target.value})}/>
+                      <input className="w-full p-3 border rounded" placeholder="이름 (실명)" value={regForm.name} onChange={e=>setRegForm({...regForm, name:e.target.value})}/>
+                      <input className="w-full p-3 border rounded" placeholder="닉네임 (화면표시용)" value={regForm.nickname} onChange={e=>setRegForm({...regForm, nickname:e.target.value})}/>
+                      <input className="w-full p-3 border rounded" placeholder="전화번호" value={regForm.phone} onChange={e=>setRegForm({...regForm, phone:e.target.value})}/>
+                      <input className="w-full p-3 border rounded" placeholder="이메일" value={regForm.email} onChange={e=>setRegForm({...regForm, email:e.target.value})}/>
+                      <div className="flex gap-2"><input className="flex-1 p-3 border rounded bg-gray-50" readOnly placeholder="주소 (검색클릭)" value={regForm.address}/><button onClick={()=>openDaumPostcode('register')} className="bg-gray-800 text-white px-4 rounded text-sm">검색</button></div>
+                      <input className="w-full p-3 border rounded" placeholder="상세주소 (동/호수 등)" value={regForm.detail_addr} onChange={e=>setRegForm({...regForm, detail_addr:e.target.value})}/>
+                      <input className="w-full p-3 border rounded" placeholder="공동현관 비번" value={regForm.gate_pw} onChange={e=>setRegForm({...regForm, gate_pw:e.target.value})}/>
+                      <button onClick={handleRegister} className="w-full bg-green-600 text-white py-3 rounded-lg font-bold mt-4">가입완료</button>
+                      <button onClick={()=>setView('login')} className="w-full bg-gray-200 text-gray-600 py-3 rounded-lg font-bold">취소</button>
+                  </div>
+              </div>
+          )
+      }
+
+      if (view === 'admin') {
+         return (
+          <div className="max-w-md mx-auto bg-gray-100 h-full flex flex-col relative">
+             <div className="bg-gray-800 text-white p-4 flex justify-between items-center sticky top-0 z-50">
+                <span className="font-bold">관리자 페이지</span>
+                <button onClick={()=>{handleLogout(); setView('home');}} className="text-xs bg-red-500 px-3 py-1 rounded">로그아웃</button>
+             </div>
+             <div className="bg-white flex border-b sticky top-[58px] z-40 text-xs font-bold">
+               {['dashboard','users','orders','products'].map(t => <button key={t} onClick={()=>{setAdminTab(t); loadAdminData();}} className={`flex-1 py-3 ${adminTab===t?'text-blue-600 border-b-2 border-blue-600':''}`}>{t==='dashboard'?'홈':t==='users'?'회원':t==='orders'?'주문':'상품'}</button>)}
+             </div>
+             <div className="flex-1 overflow-y-auto p-4 pb-20">
+                {adminTab === 'dashboard' && <div className="p-4 bg-white rounded shadow text-center"><h3 className="font-bold mb-2">현황</h3><p>총 회원: {adminUsers.length}명</p><p>총 주문: {adminOrders.length}건</p></div>}
+                
+                {adminTab === 'users' && (
+                    <div className="space-y-3">
+                        <button onClick={()=>window.location.href='/api/admin/download/users'} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold shadow-md"><i className="fas fa-file-excel mr-2"></i>회원목록 엑셀 다운로드</button>
+                        <div className="bg-white p-3 rounded shadow"><h4 className="font-bold mb-2">전체 문자 발송 (가상)</h4><div className="flex gap-2"><input className="flex-1 border p-2 rounded" placeholder="내용 입력" value={msgInput} onChange={e=>setMsgInput(e.target.value)}/><button onClick={()=>alert('전송 기능은 비용 문제로 비활성화 됨')} className="bg-gray-800 text-white px-3 rounded text-sm">전송</button></div></div>
+                        {adminUsers.map((u, i) => (<div key={i} className="bg-white p-4 rounded shadow border text-sm"><div className="flex justify-between font-bold"><span>{u.name} ({u.nickname})</span><span>{u.phone}</span></div><div className="text-gray-500 my-1">{u.address} {u.detail_addr}</div><div className="text-xs text-gray-400">비번: {u.gate_pw} / ID: {u.id}</div><div className="flex gap-2 mt-2"><input className="flex-1 border p-1 rounded text-xs" placeholder="개별 메시지" id={`msg-${u.phone}`}/><button onClick={()=>{const m=document.getElementById(`msg-${u.phone}`).value; if(m) api.post('/api/admin/send_msg', {phone:u.phone, msg:m}).then(()=>alert('전송됨'));}} className="bg-green-600 text-white px-2 py-1 rounded text-xs">문자보내기</button></div></div>))}
+                    </div>
+                )}
+
+                {adminTab === 'orders' && (
+                    <div className="space-y-3">
+                        <button onClick={()=>window.location.href='/api/admin/download/orders'} className="w-full bg-green-600 text-white py-3 rounded-lg font-bold shadow-md"><i className="fas fa-file-excel mr-2"></i>주문목록 엑셀 다운로드</button>
+                        {adminOrders.map((o,i)=><div key={i} className="bg-white p-3 mb-2 rounded shadow"><b>{o.name}</b> <span className={`text-xs px-2 rounded ${o.payment==='입금완료'?'bg-blue-100 text-blue-600':'bg-red-100 text-red-500'}`}>{o.payment}</span><br/>{o.items} ({o.total}) <br/><span className="text-xs text-gray-500">{o.date} | {o.address}</span></div>)}
+                    </div>
+                )}
+
+                {adminTab === 'products' && (
+                    <div className="space-y-2">
+                         <div className="bg-white p-3 rounded mb-2 space-y-2">
+                             <h4 className="font-bold">상품 등록</h4>
+                             <div className="relative w-full h-32 bg-gray-100 rounded border-dashed border-2 flex items-center justify-center overflow-hidden">
+                                {newProduct.icon && newProduct.icon.startsWith('data:') ? <img src={newProduct.icon} className="h-full w-full object-contain"/> : <span className="text-gray-400">사진 촬영/선택</span>}
+                                <input type="file" accept="image/*" capture="environment" className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" onChange={handleImageUpload}/>
+                             </div>
+                             
+                             <input className="border p-2 w-full rounded" placeholder="상품명 (예: 사과)" value={newProduct.name} onChange={e=>setNewProduct({...newProduct, name:e.target.value})}/>
+                             <div className="flex gap-2">
+                                <input className="border p-2 w-full rounded" placeholder="규격 (예: 1kg)" value={newProduct.spec} onChange={e=>setNewProduct({...newProduct, spec:e.target.value})}/>
+                                <input className="border p-2 w-full rounded" placeholder="가격" type="number" value={newProduct.price} onChange={e=>setNewProduct({...newProduct, price:e.target.value})}/>
+                             </div>
+                             <div className="flex gap-2">
+                                <input className="border p-2 w-full rounded" placeholder="재고 (기본:100)" type="number" value={newProduct.stock} onChange={e=>setNewProduct({...newProduct, stock:e.target.value})}/>
+                                <select className="border p-2 w-full rounded" value={newProduct.category} onChange={e=>setNewProduct({...newProduct, category:e.target.value})}>{FIXED_CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select>
+                             </div>
+
+                             <div className="flex gap-2"><button onClick={handleAddProduct} className="flex-1 bg-blue-600 text-white py-2 rounded">개별 등록</button><label className="flex-1 bg-green-600 text-white py-2 rounded text-center cursor-pointer">엑셀 등록<input type="file" accept=".xlsx" className="hidden" onChange={e=>{if(!e.target.files[0])return; const fd=new FormData(); fd.append('file',e.target.files[0]); fetch('/api/upload/excel',{method:'POST',body:fd}).then(r=>r.json()).then(m=>{alert(m);loadData();});}}/></label></div>
+                             
+                             <div className="flex gap-2 border-t pt-3 mt-2 items-center">
+                                <span className="text-xs font-bold">카테고리 삭제:</span>
+                                <select className="border p-1 text-xs rounded" value={deleteCategory} onChange={e=>setDeleteCategory(e.target.value)}>{FIXED_CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select>
+                                <button onClick={()=>{if(confirm(`[${deleteCategory}] 카테고리의 모든 상품을 삭제합니까?`)) api.post('/api/product/delete-category', {category:deleteCategory}).then(r=>{alert(r); loadData();})}} className="bg-red-100 text-red-600 px-2 py-1 rounded text-xs font-bold">삭제</button>
+                             </div>
+                             <button onClick={()=>{if(confirm('전체 삭제 하시겠습니까?')) api.post('/api/product/delete-all', {}).then(r=>{alert(r); loadData();})}} className="w-full bg-gray-200 text-gray-500 py-2 rounded text-xs mt-1">상품 전체 초기화</button>
+                         </div>
+                         {products.map((p,i)=><div key={i} className="bg-white p-2 flex justify-between border-b items-center"><span>{p.name} ({p.stock}개)</span><button onClick={()=>api.post('/api/product/delete',{id:p.id}).then(loadData)} className="text-red-500 text-sm">[삭제]</button></div>)}
+                    </div>
+                )}
+             </div>
+          </div>
+         );
+      }
+
+      return (
+        <div className="max-w-md mx-auto bg-white h-full flex flex-col shadow-2xl relative">
+          <header className="bg-green-600 text-white p-4 shrink-0 shadow-md z-50 flex justify-between items-center">
+            <div onClick={()=>{setSecretClickCount(c=>c+1); if(secretClickCount>=4){alert('관리자 로그인 필요'); setView('login'); setSecretClickCount(0);}}} className="font-bold text-xl cursor-pointer select-none"><i className="fas fa-truck mr-2"></i>바구니삼촌</div>
+            <div className="flex items-center gap-3">
+                {currentUser ? (<span className="text-sm cursor-pointer" onClick={handleLogout}>{currentUser.nickname}님</span>) : (<button onClick={()=>setView('login')} className="text-sm underline">로그인</button>)}
+                <div className="relative cursor-pointer flex items-center gap-1" onClick={()=>setOrderStep(1)}>
+                    <div className="text-right">
+                        {cartTotal > 0 && <span className="block text-xs font-bold text-yellow-300">{cartTotal.toLocaleString()}원</span>}
+                        <i className="fas fa-shopping-cart text-xl"></i>
+                    </div>
+                    {cart.length>0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold">{cart.length}</span>}
+                </div>
+            </div>
+          </header>
+          
+          <main className="flex-1 overflow-y-auto bg-gray-50 hide-scrollbar">
+            {view === 'home' && (
+              <>
+                <div className="bg-white px-2 py-3 flex gap-2 overflow-x-auto sticky top-0 z-40 border-b">{categories.map(c=><button key={c} onClick={()=>{setActiveCategory(c); setSearchQuery('');}} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap ${activeCategory===c?'bg-green-600 text-white':'bg-gray-100 text-gray-500'}`}>{c}</button>)}</div>
+                
+                <div className="px-4 py-3 bg-white border-b">
+                    <div className="bg-gray-100 rounded-xl flex items-center px-3 py-2 mb-2">
+                        <i className="fas fa-search text-gray-400 mr-2"></i>
+                        <input className="bg-transparent w-full outline-none text-sm" placeholder="상품 검색 (이름)" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)}/>
+                        {searchQuery && <button onClick={()=>setSearchQuery('')} className="text-gray-400"><i className="fas fa-times-circle"></i></button>}
+                    </div>
+                    <div className="text-xs text-gray-500 text-right">총 {filteredProducts.length}개의 상품</div>
+                </div>
+
+                {globalNotice && <div className="bg-yellow-50 p-3 text-sm text-yellow-800 text-center"><i className="fas fa-bullhorn mr-2"></i>{globalNotice}</div>}
+                <div className="p-4 grid grid-cols-2 gap-4 pb-24">{filteredProducts.map((p,i)=>(<div key={i} className="bg-white rounded-xl shadow overflow-hidden flex flex-col"><div className="h-32 bg-gray-100 flex items-center justify-center text-5xl">{p.icon.startsWith('data:')?<img src={p.icon} className="w-full h-full object-cover"/>:p.icon}</div><div className="p-3"><h3 className="font-bold text-sm mb-1 word-keep">{p.name}</h3><div className="flex justify-between items-center"><span className="font-bold text-gray-800">{Number(p.price).toLocaleString()}원</span><button onClick={()=>setCart([...cart, p])} className="w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center"><i className="fas fa-plus"></i></button></div></div></div>))}</div>
+                {filteredProducts.length === 0 && <div className="text-center py-20 text-gray-400">상품이 없습니다.</div>}
+              </>
+            )}
+            
+            {view === 'reviews' && <div className="p-10 text-center text-gray-500">후기 기능 준비중</div>}
+          </main>
+          
+          <nav className="shrink-0 bg-white border-t grid grid-cols-3 z-50 text-xs text-gray-400 font-bold safe-area-bottom"><button onClick={()=>setView('home')} className="flex flex-col items-center py-3 text-green-600"><i className="fas fa-home text-lg mb-1"></i>홈</button><button onClick={()=>setView('reviews')} className="flex flex-col items-center py-3"><i className="fas fa-star text-lg mb-1"></i>후기</button><button onClick={()=>{if(!currentUser){alert('로그인이 필요합니다');setView('login');}else alert('준비중');}} className="flex flex-col items-center py-3"><i className="fas fa-list-alt text-lg mb-1"></i>내역</button></nav>
+          
+          {orderStep > 0 && (
+             <div className="fixed inset-0 bg-black/50 z-[60] flex items-end justify-center" onClick={e=>{if(e.target===e.currentTarget) setOrderStep(0)}}>
+                <div className="bg-white w-full max-w-md h-[80vh] rounded-t-2xl flex flex-col shadow-2xl overflow-hidden animate-slide-up">
+                   {orderStep===1 && <><div className="p-4 border-b flex justify-between"><h2 className="font-bold">장바구니</h2><button onClick={()=>setOrderStep(0)}>✕</button></div><div className="flex-1 overflow-y-auto p-4">{cart.map((it,i)=><div key={i} className="flex justify-between p-2 border-b"><span>{it.name}</span><button onClick={()=>setCart(cart.filter((_,x)=>x!==i))}>✕</button></div>)}</div><div className="p-4"><button onClick={()=>{if(cart.length===0)return; if(!currentUser){alert('로그인 후 주문해주세요');setView('login');setOrderStep(0);}else setOrderStep(2);}} className="w-full bg-green-600 text-white py-3 rounded-lg font-bold">주문하기 ({cartTotal.toLocaleString()}원)</button></div></>}
+                   
+                   {orderStep===2 && <><div className="p-4 border-b"><h2 className="font-bold">주문/결제</h2></div><div className="flex-1 p-4 space-y-3 bg-gray-50 overflow-y-auto">
+                       <div className="bg-white p-3 rounded border">
+                           <h3 className="font-bold mb-2">결제 수단</h3>
+                           <div className="flex gap-2">
+                               <button onClick={()=>setOrderInfo({...orderInfo, payMethod:'bank'})} className={`flex-1 py-2 rounded border text-sm ${orderInfo.payMethod==='bank'?'bg-green-600 text-white':'bg-gray-100'}`}>무통장입금</button>
+                               <button onClick={()=>setOrderInfo({...orderInfo, payMethod:'meet'})} className={`flex-1 py-2 rounded border text-sm ${orderInfo.payMethod==='meet'?'bg-green-600 text-white':'bg-gray-100'}`}>만나서결제</button>
+                           </div>
+                           
+                           {orderInfo.payMethod === 'bank' && (
+                               <div className="mt-3 p-3 bg-gray-100 rounded text-sm text-center">
+                                   <div className="text-gray-500 mb-1">입금 계좌</div>
+                                   <div className="font-bold text-lg mb-2">{BANK_INFO.bank} {BANK_INFO.account} <span className="text-sm font-normal">({BANK_INFO.holder})</span></div>
+                                   <button onClick={copyAccount} className="bg-gray-800 text-white px-3 py-1 rounded text-xs">계좌번호 복사</button>
+                               </div>
+                           )}
+                       </div>
+
+                       <h3 className="font-bold mt-4">배송 정보</h3>
+                       <input className="w-full p-3 border rounded" value={orderInfo.name} onChange={e=>setOrderInfo({...orderInfo, name:e.target.value})} placeholder="받는분"/>
+                       <input className="w-full p-3 border rounded" value={orderInfo.phone} onChange={e=>setOrderInfo({...orderInfo, phone:e.target.value})} placeholder="연락처"/>
+                       <div className="flex gap-2"><input className="flex-1 p-3 border rounded" value={orderInfo.addr} readOnly placeholder="주소"/><button onClick={()=>openDaumPostcode('order')} className="bg-gray-800 text-white px-3 rounded text-xs">주소검색</button></div>
+                       <input className="w-full p-3 border rounded" value={orderInfo.detail} onChange={e=>setOrderInfo({...orderInfo, detail:e.target.value})} placeholder="상세주소"/><input className="w-full p-3 border rounded" value={orderInfo.gate} onChange={e=>setOrderInfo({...orderInfo, gate:e.target.value})} placeholder="공동현관 비번"/></div><div className="p-4"><button onClick={submitOrder} className="w-full bg-green-600 text-white py-3 rounded-lg font-bold">결제하기 ({cartTotal.toLocaleString()}원)</button></div></>}
+                   
+                   {orderStep===3 && <div className="flex-1 flex flex-col items-center justify-center"><i className="fas fa-check-circle text-5xl text-green-500 mb-4"></i><h2 className="font-bold">주문 완료!</h2><p className="mt-2 text-gray-500">{orderInfo.payMethod==='bank'?'입금 확인 후 배송됩니다.':'배송 시 결제해주세요.'}</p><button onClick={()=>{setOrderStep(0); setView('home');}} className="mt-4 bg-gray-800 text-white px-6 py-2 rounded">확인</button></div>}
+                </div>
+             </div>
+          )}
+          {showAddressModal && <div className="fixed inset-0 z-[150] bg-black/50 flex items-center justify-center p-4"><div className="bg-white w-full max-w-sm h-[400px] rounded flex flex-col"><div className="p-2 border-b text-right"><button onClick={()=>setShowAddressModal(false)}>✕</button></div><div ref={daumPostcodeRef} className="flex-1 w-full h-full"></div></div></div>}
+        </div>
+      );
+    }
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+    {% endraw %}
+  </script>
+</body>
+</html>
